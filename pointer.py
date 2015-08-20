@@ -251,13 +251,45 @@ class FingerGnosis(ctn_benchmark.Benchmark):
         sim.run(self.exp.T)
         self.record_speed(self.exp.T)
 
+        t = sim.trange()
+
+        if p.task == 'fingers':
+            scores = np.zeros(p.pointer_count-1, dtype=float)
+            count = np.zeros(p.pointer_count-1)
+
+            for i in range(len(self.exp.pairs)):
+                t_start = i * self.exp.trial_time
+                t_end = (i+1) * self.exp.trial_time
+                index_start = np.argmax(t > t_start)
+                index_end = np.argmax(t > t_end)
+                if t_end >= t[-1]:
+                    index_end = len(t)
+                data = sim.data[self.p_report][index_start:index_end]
+                answers = np.max(data, axis=0)
+                values = [(v, ii) for ii, v in enumerate(answers)]
+                values.sort()
+                r = values[-1][1], values[-2][1]
+                c = self.exp.pairs[i]
+
+                delta = abs(c[0] - c[1])
+                count[delta - 1] += 1
+                if (r[0], r[1]) == (c[0], c[1]) or (r[0], r[1]) == (c[1], c[0]):
+                    scores[delta - 1] += 1
+
+            scores = scores / count
+
+
+
         if plt is not None:
             plt.subplot(2,1,1)
             plt.plot(sim.trange(), sim.data[self.p_report])
             plt.subplot(2,1,2)
             plt.plot(sim.trange(), sim.data[self.p_memory])
 
-        return {}
+        result = {}
+        for i, s in enumerate(scores):
+            result['score%d'%(i+1)] = s
+        return result
 
 
 if __name__ == '__main__':
