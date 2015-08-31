@@ -12,6 +12,32 @@ def task_vary_ref():
 
     return dict(actions=[run], verbosity=2)
 
+def task_compare():
+    def run():
+        for i in range(100):
+            pointer.FingerGnosis().run(seed=i,
+                                       task='compare',
+                                       N_reference=300,
+                                       N_memory=500,
+                                       data_dir='compare',
+                                       pointer_count=3)
+
+    return dict(actions=[run], verbosity=2)
+
+def task_plot_compare():
+    def plot():
+        data = ctn_benchmark.Data('compare')
+
+        plot = ctn_benchmark.Plot(data)
+
+        plot.measures(['score1', 'score2', 'score3', 'score4','score5','score6', 'score7', 'score8'], outlier_cutoff=None,
+                ylim=(0,1))
+
+        import pylab
+        pylab.show()
+    return dict(actions=[plot], verbosity=2)
+
+
 def task_plot():
     def plot():
         data = ctn_benchmark.Data('data')
