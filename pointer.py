@@ -6,15 +6,36 @@ import ctn_benchmark
 class NumberExperiment:
     def __init__(self, p):
         self.p = p
+        self.pairs = []
+        self.order = []
+        rng = np.random.RandomState(seed=p.seed)
+        for i in range(1, 10):
+            for j in range(i + 1, 10):
+                order = rng.choice([-1, 1])
+                self.order.append(order)
+                if order < 0:
+                    self.pairs.append((i, j))
+                else:
+                    self.pairs.append((j, i))
+        rng.shuffle(self.pairs)
+
+        #self.pairs = self.pairs[:3]
+
+        self.trial_time = 1.0
+        self.T = len(self.pairs) * self.trial_time
     def input0(self, t):
         return [0]*self.p.pointer_count
     def input1(self, t):
-        if 0.1<t<0.2: return [compare_numbers[0]]
-        if 0.3<t<0.4: return [compare_numbers[1]]
+        index = int(t / self.trial_time)
+        t = t % self.trial_time
+        a, b = self.pairs[index % len(self.pairs)]
+        if 0.1<t<0.2: return [a * 0.1 - 1]
+        if 0.3<t<0.4: return [b * 0.1 - 1]
         return [0]
     def pointer_source(self, t):
         return [0, 1]
     def pointer_target(self, t):
+        t = t % self.trial_time
         v = [0]*self.p.pointer_count
         if 0.1<t<0.2: v[0]=1
         if 0.3<t<0.4: v[1]=1
@@ -22,7 +43,14 @@ class NumberExperiment:
     def report_finger(self, t):
         return [0]
     def report_compare(self, t):
-        if 0.5<t<1.0:
+        t = t % self.trial_time
+        if 0.5<t<self.trial_time:
+            return [1]
+        else:
+            return [0]
+    def memory_clear(self, t):
+        t = t % self.trial_time
+        if 1.0 - self.p.time_clear_mem < t < 1.0:
             return [1]
         else:
             return [0]
@@ -244,6 +272,7 @@ class FingerGnosis(ctn_benchmark.Benchmark):
                                  synapse=0.01)
 
             self.p_report = nengo.Probe(report.output, synapse=0.01)
+            self.p_compare = nengo.Probe(compare, synapse=0.01)
             self.p_memory = nengo.Probe(memory.output, synapse=0.01)
         return model
 
@@ -277,12 +306,45 @@ class FingerGnosis(ctn_benchmark.Benchmark):
                     scores[delta - 1] += 1
 
             scores = scores / count
+        else:
+            scores = np.zeros(8, dtype=float)
+            count = np.zeros(8)
 
+            for i in range(len(self.exp.pairs)):
+                t_start = i * self.exp.trial_time
+                t_end = (i+1) * self.exp.trial_time
+                index_start = np.argmax(t > t_start)
+                index_end = np.argmax(t > t_end)
+                if t_end >= t[-1]:
+                    index_end = len(t)
+                data = sim.data[self.p_compare][index_start:index_end]
+                answer = np.mean(data)
+
+                c = self.exp.pairs[i]
+
+
+                delta = abs(c[0] - c[1])
+                count[delta - 1] += 1
+                if (answer < 0 and c[0] < c[1]) or (answer > 0 and c[1] < c[0]):
+                    scores[delta - 1] += 1
+
+            scores = scores / count
 
 
         if plt is not None:
             plt.subplot(2,1,1)
-            plt.plot(sim.trange(), sim.data[self.p_report])
+            if p.task == 'fingers':
+                plt.plot(sim.trange(), sim.data[self.p_report])
+            elif p.task == 'compare':
+                plt.plot(sim.trange(), sim.data[self.p_compare])
+                for i, (a, b) in enumerate(self.exp.pairs):
+                    t = self.exp.trial_time * (i + 0.5)
+                    colors = ['#000000', '#666666']
+                    if a < b:
+                        colors = colors[::-1]
+                    plt.text(t, 1.7, '%d' % a, color=colors[0])
+                    plt.text(t, -1.7, '%d' % b, color=colors[1])
+
             plt.subplot(2,1,2)
             plt.plot(sim.trange(), sim.data[self.p_memory])
 
