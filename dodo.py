@@ -37,6 +37,17 @@ def task_plot_compare():
         pylab.show()
     return dict(actions=[plot], verbosity=2)
 
+def task_data_compare():
+    def gather():
+        data = ctn_benchmark.Data('compare')
+        d = []
+        for i in range(1, 9):
+            d.append(1.0 - data.get('score%d' % i))
+        d = np.array(d).T
+
+        for row in d:
+            print ', '.join(['%1.3f' % x for x in row])
+    return dict(actions=[gather], verbosity=2)
 
 def task_plot():
     def plot():
