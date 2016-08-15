@@ -25,12 +25,25 @@ class NumberExperiment:
         self.T = len(self.pairs) * self.trial_time
     def input0(self, t):
         return [0]*self.p.pointer_count
+    def display(self, t):
+        index = int(t / self.trial_time)
+        t = t % self.trial_time
+        a, b = self.pairs[index % len(self.pairs)]
+        if 0.1<t<0.2:
+            self.display.im_func._nengo_html_ = '<h1>%d</h1>' % a
+            return
+        if 0.3<t<0.4: 
+            self.display.im_func._nengo_html_ = '<h1>%d</h1>' % b
+            return
+        self.display.im_func._nengo_html_ = ''
     def input1(self, t):
         index = int(t / self.trial_time)
         t = t % self.trial_time
         a, b = self.pairs[index % len(self.pairs)]
-        if 0.1<t<0.2: return [a * 0.1 - 1]
-        if 0.3<t<0.4: return [b * 0.1 - 1]
+        if 0.1<t<0.2:
+            return [a * 0.1 - 1]
+        if 0.3<t<0.4: 
+            return [b * 0.1 - 1]
         return [0]
     def pointer_source(self, t):
         return [0, 1]
@@ -113,7 +126,7 @@ class FingerGnosis(ctn_benchmark.Benchmark):
         self.default('memory synapse time', memory_synapse=0.1)
         self.default('clear memory time', time_clear_mem=0.1)
         self.default('crosstalk', crosstalk=0.2)
-        self.default('task', task='fingers')
+        self.default('task', task='compare')
 
     def model(self, p):
         model = nengo.Network()
@@ -126,6 +139,7 @@ class FingerGnosis(ctn_benchmark.Benchmark):
         with model:
             input0 = nengo.Node(self.exp.input0)
             input1 = nengo.Node(self.exp.input1)
+            display = nengo.Node(self.exp.display)
             pointer_source = nengo.Node(self.exp.pointer_source)
             pointer_target = nengo.Node(self.exp.pointer_target)
             report_finger = nengo.Node(self.exp.report_finger)
@@ -136,8 +150,9 @@ class FingerGnosis(ctn_benchmark.Benchmark):
             # create neural models for the two input areas
             #  (fingers and magnitude)
             area0 = nengo.Ensemble(p.N_input*p.pointer_count, p.pointer_count,
-                                   radius=np.sqrt(p.pointer_count))
-            area1 = nengo.Ensemble(p.N_input, 1)
+                                   radius=np.sqrt(p.pointer_count),
+                                   label='area0')
+            area1 = nengo.Ensemble(p.N_input, 1, label='area1')
 
             nengo.Connection(input0, area0)
             nengo.Connection(input1, area1)
@@ -152,7 +167,7 @@ class FingerGnosis(ctn_benchmark.Benchmark):
                     m[post[i%len(post)]][pre[i%len(pre)]]=value
                 return m
 
-            pointers = nengo.Network()
+            pointers = nengo.Network(label='pointers')
             with pointers:
                 for i in range(p.pointer_count):
                     nengo.Ensemble(p.N_pointer,
@@ -200,7 +215,8 @@ class FingerGnosis(ctn_benchmark.Benchmark):
             reference=nengo.Ensemble(p.N_reference,p.pointer_count,
                                      radius=np.sqrt(p.pointer_count),
                                      encoders=nengo.dists.Choice(basis),
-                                     intercepts=nengo.dists.Uniform(0.1,0.9))
+                                     intercepts=nengo.dists.Uniform(0.1,0.9),
+                                     label='reference')
             for i in range(p.pointer_count):
                 matrix=[p.crosstalk]*p.pointer_count
                 matrix[i]=1.0-p.crosstalk
@@ -212,7 +228,7 @@ class FingerGnosis(ctn_benchmark.Benchmark):
 
             # add a memory to integrate the value referenced by the pointers
             memory = nengo.networks.EnsembleArray(p.N_memory, p.pointer_count,
-                                                  radius=1)
+                                                  radius=1, label='memory')
             nengo.Connection(reference,memory.input,transform=1)
             nengo.Connection(memory.output, memory.input,
                              transform=1, synapse=p.memory_synapse)
@@ -223,7 +239,7 @@ class FingerGnosis(ctn_benchmark.Benchmark):
             report = nengo.networks.EnsembleArray(p.N_report,p.pointer_count,
                 encoders=nengo.dists.Choice([[1]]),
                 intercepts=nengo.dists.Uniform(0.3,0.9),
-                radius=0.3)
+                radius=0.3, label='report')
             nengo.Connection(memory.output,report.input,transform=1)
             m=[[-10]*p.pointer_count for i in range(p.pointer_count)]
             for i in range(p.pointer_count):
@@ -232,7 +248,8 @@ class FingerGnosis(ctn_benchmark.Benchmark):
                              transform=m, synapse=0.01)
             reported = nengo.networks.EnsembleArray(p.N_report, p.pointer_count,
                 radius=1, encoders=nengo.dists.Choice([[1]]),
-                intercepts=nengo.dists.Uniform(0.05,0.9))
+                intercepts=nengo.dists.Uniform(0.05,0.9),
+                label='reported')
             nengo.Connection(report.output, reported.input,
                              transform=1, synapse=0.2)
             nengo.Connection(reported.output, report.input, transform=-1)
@@ -241,20 +258,22 @@ class FingerGnosis(ctn_benchmark.Benchmark):
 
             # create a system to report whether the first
             # or second number is bigger
-            compare = nengo.Ensemble(p.N_compare,1)
+            compare = nengo.Ensemble(p.N_compare,1, label='compare')
             nengo.Connection(memory.ensembles[0],compare,transform=50)
             nengo.Connection(memory.ensembles[1],compare,transform=-50)
 
             # create inhibitory gates to control the two reporting systems
             report_gate_f = nengo.Ensemble(50,1,
                 encoders=nengo.dists.Choice([[1]]),
-                intercepts=nengo.dists.Uniform(0.1,0.9))
+                intercepts=nengo.dists.Uniform(0.1,0.9),
+                label='report gate f')
             report_gate_c=nengo.Ensemble(50,1,
                 encoders=nengo.dists.Choice([[1]]),
-                intercepts=nengo.dists.Uniform(0.1,0.9))
+                intercepts=nengo.dists.Uniform(0.1,0.9),
+                label='report gate c')
             nengo.Connection(report_finger,report_gate_f,transform=-10)
             nengo.Connection(report_compare,report_gate_c,transform=-10)
-            report_bias=nengo.Node([1])
+            report_bias=nengo.Node([1], label='bias')
             nengo.Connection(report_bias,report_gate_f)
             nengo.Connection(report_bias,report_gate_c)
 
@@ -274,6 +293,14 @@ class FingerGnosis(ctn_benchmark.Benchmark):
             self.p_report = nengo.Probe(report.output, synapse=0.01)
             self.p_compare = nengo.Probe(compare, synapse=0.01)
             self.p_memory = nengo.Probe(memory.output, synapse=0.01)
+
+        if p.backend == 'nengo_spinnaker':
+            import nengo_spinnaker
+            nengo_spinnaker.add_spinnaker_params(model.config)
+            for node in model.all_nodes:
+                if callable(node.output):
+                    if not hasattr(node.output, '_nengo_html_'):
+                        model.config[node].function_of_time = True
         return model
 
     def evaluate(self, p, sim, plt):
