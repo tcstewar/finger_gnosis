@@ -90,6 +90,8 @@ class FingerTouchExperiment:
             for i in self.pairs[index]:
                 r[i]=1
         return r
+    def display(self, t):
+        self.display.im_func._nengo_html_ = ''
     def input1(self, t):
         return [0]
     def pointer_source(self, t):
@@ -139,7 +141,8 @@ class FingerGnosis(ctn_benchmark.Benchmark):
         with model:
             input0 = nengo.Node(self.exp.input0)
             input1 = nengo.Node(self.exp.input1)
-            display = nengo.Node(self.exp.display)
+            if hasattr(self.exp, 'display'):
+                display = nengo.Node(self.exp.display)
             pointer_source = nengo.Node(self.exp.pointer_source)
             pointer_target = nengo.Node(self.exp.pointer_target)
             report_finger = nengo.Node(self.exp.report_finger)
@@ -258,9 +261,18 @@ class FingerGnosis(ctn_benchmark.Benchmark):
 
             # create a system to report whether the first
             # or second number is bigger
-            compare = nengo.Ensemble(p.N_compare,1, label='compare')
-            nengo.Connection(memory.ensembles[0],compare,transform=50)
-            nengo.Connection(memory.ensembles[1],compare,transform=-50)
+            compare = nengo.Ensemble(p.N_compare,2, label='compare', radius=1.4)
+            nengo.Connection(memory.ensembles[0],compare[0],transform=p.evidence_scale)
+            nengo.Connection(memory.ensembles[1],compare[0],transform=-p.evidence_scale)
+            def compare_func(x):
+                if x[0]>1:
+                    return [1, 1]
+                if x[0]<1:
+                    return [-1, -1]
+                else:
+                    return [x[0], 0]
+            nengo.Connection(compare, compare, function=compare_func, synapse=0.1)
+
 
             # create inhibitory gates to control the two reporting systems
             report_gate_f = nengo.Ensemble(50,1,
@@ -285,7 +297,7 @@ class FingerGnosis(ctn_benchmark.Benchmark):
                 nengo.Connection(report_gate_f, reported.ensembles[i].neurons,
                                  transform=[[-100.0]]*p.N_report, synapse=0.01)
 
-            for ens in memory.all_ensembles:
+            for ens in memory.all_ensembles + [compare]:
                 nengo.Connection(memory_clear, ens.neurons,
                                  transform=[[-10]] * ens.n_neurons,
                                  synapse=0.01)
@@ -383,3 +395,6 @@ class FingerGnosis(ctn_benchmark.Benchmark):
 
 if __name__ == '__main__':
     FingerGnosis().run()
+else:
+    model = FingerGnosis().make_model(task='compare', crosstalk=0, time_clear_mem=0.4)
+    
