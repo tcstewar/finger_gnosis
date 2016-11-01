@@ -106,7 +106,7 @@ class FingerGnosis(pytry.NengoTrial):
         self.param('neurons for input', N_input=200)
         self.param('neurons per pointer', N_pointer=400)
         self.param('neurons per decoded reference', N_reference=1000)
-        self.param('neurons for memory', N_memory=2000)
+        self.param('neurons for memory', N_memory=200)
         self.param('neurons for comparison', N_compare=400)
         self.param('neurons for reporting', N_report=100)
         self.param('number of pointers', pointer_count=3)
