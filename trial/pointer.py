@@ -117,7 +117,8 @@ class FingerGnosis(pytry.NengoTrial):
         self.param('magnitude of touch signal', touch_strength=1.0)
         self.param('crosstalk decay', crosstalk_decay=0.0)
         self.param('scaling on numerical values', num_slope=0.1)
-        self.param('scaling on numerical values', num_bias=0)
+        self.param('scaling on numerical values', num_bias=0.0)
+        self.param('memory input scale', memory_input_scale=1.0)
 
     def model(self, p):
         model = nengo.Network()
@@ -220,7 +221,7 @@ class FingerGnosis(pytry.NengoTrial):
             # add a memory to integrate the value referenced by the pointers
             memory = nengo.networks.EnsembleArray(p.N_memory, p.pointer_count,
                                                   radius=1)
-            nengo.Connection(reference,memory.input,transform=1)
+            nengo.Connection(reference,memory.input,transform=p.memory_input_scale)
             nengo.Connection(memory.output, memory.input,
                              transform=1, synapse=p.memory_synapse)
 
