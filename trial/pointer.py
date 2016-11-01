@@ -115,6 +115,7 @@ class FingerGnosis(pytry.NengoTrial):
         self.param('crosstalk', crosstalk=0.2)
         self.param('task', task='fingers')
         self.param('magnitude of touch signal', touch_strength=1.0)
+        self.param('crosstalk decay', crosstalk_decay=0.0)
 
     def model(self, p):
         model = nengo.Network()
@@ -205,11 +206,14 @@ class FingerGnosis(pytry.NengoTrial):
             for i in range(p.pointer_count):
                 matrix=[p.crosstalk]*p.pointer_count
                 matrix[i]=1.0-p.crosstalk
+                for j in range(p.pointer_count):
+                    delta = np.abs(i-j)
+                    if delta > 1:
+                        matrix[j] = max(0, p.crosstalk - p.crosstalk_decay * (delta-1))
                 pointer = pointers.ensembles[i]
                 nengo.Connection(pointer, reference,
                                  function=ref_func,
                                  transform=[[x] for x in matrix])
-
 
             # add a memory to integrate the value referenced by the pointers
             memory = nengo.networks.EnsembleArray(p.N_memory, p.pointer_count,
