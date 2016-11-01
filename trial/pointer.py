@@ -75,7 +75,7 @@ class FingerTouchExperiment:
         t = t % self.trial_time
         if 0.1<t<0.2:
             for i in self.pairs[index]:
-                r[i]=1
+                r[i]=self.p.touch_strength
         return r
     def input1(self, t):
         return [0]
@@ -114,6 +114,7 @@ class FingerGnosis(pytry.NengoTrial):
         self.param('clear memory time', time_clear_mem=0.2)
         self.param('crosstalk', crosstalk=0.2)
         self.param('task', task='fingers')
+        self.param('magnitude of touch signal', touch_strength=1.0)
 
     def model(self, p):
         model = nengo.Network()
