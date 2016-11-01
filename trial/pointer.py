@@ -119,9 +119,13 @@ class FingerGnosis(pytry.NengoTrial):
         self.param('scaling on numerical values', num_slope=0.1)
         self.param('scaling on numerical values', num_bias=0.0)
         self.param('memory input scale', memory_input_scale=1.0)
+        self.param('direct mode', direct=False)
+        self.param('compare scale', compare_scale=50.0)
 
     def model(self, p):
         model = nengo.Network()
+        if p.direct:
+            model.config[nengo.Ensemble].neuron_type=nengo.Direct()
 
         if p.task == 'compare':
             self.exp = NumberExperiment(p=p)
@@ -220,6 +224,7 @@ class FingerGnosis(pytry.NengoTrial):
 
             # add a memory to integrate the value referenced by the pointers
             memory = nengo.networks.EnsembleArray(p.N_memory, p.pointer_count,
+                                                  neuron_type=nengo.LIF(),
                                                   radius=1)
             nengo.Connection(reference,memory.input,transform=p.memory_input_scale)
             nengo.Connection(memory.output, memory.input,
@@ -231,6 +236,7 @@ class FingerGnosis(pytry.NengoTrial):
             report = nengo.networks.EnsembleArray(p.N_report,p.pointer_count,
                 encoders=nengo.dists.Choice([[1]]),
                 intercepts=nengo.dists.Uniform(0.3,0.9),
+                neuron_type=nengo.LIF(),
                 radius=0.3)
             nengo.Connection(memory.output,report.input,transform=1)
             m=[[-10]*p.pointer_count for i in range(p.pointer_count)]
@@ -240,6 +246,7 @@ class FingerGnosis(pytry.NengoTrial):
                              transform=m, synapse=0.01)
             reported = nengo.networks.EnsembleArray(p.N_report, p.pointer_count,
                 radius=1, encoders=nengo.dists.Choice([[1]]),
+                neuron_type=nengo.LIF(),
                 intercepts=nengo.dists.Uniform(0.05,0.9))
             nengo.Connection(report.output, reported.input,
                              transform=1, synapse=0.2)
@@ -249,9 +256,9 @@ class FingerGnosis(pytry.NengoTrial):
 
             # create a system to report whether the first
             # or second number is bigger
-            compare = nengo.Ensemble(p.N_compare,1)
-            nengo.Connection(memory.ensembles[0],compare,transform=50)
-            nengo.Connection(memory.ensembles[1],compare,transform=-50)
+            compare = nengo.Ensemble(p.N_compare,1, neuron_type=nengo.LIF())
+            nengo.Connection(memory.ensembles[0],compare,transform=p.compare_scale)
+            nengo.Connection(memory.ensembles[1],compare,transform=-p.compare_scale)
 
             # create inhibitory gates to control the two reporting systems
             report_gate_f = nengo.Ensemble(50,1,
@@ -260,8 +267,8 @@ class FingerGnosis(pytry.NengoTrial):
             report_gate_c=nengo.Ensemble(50,1,
                 encoders=nengo.dists.Choice([[1]]),
                 intercepts=nengo.dists.Uniform(0.1,0.9))
-            nengo.Connection(report_finger,report_gate_f,transform=-10)
-            nengo.Connection(report_compare,report_gate_c,transform=-10)
+            nengo.Connection(report_finger,report_gate_f,transform=-1)
+            nengo.Connection(report_compare,report_gate_c,transform=-1)
             report_bias=nengo.Node([1])
             nengo.Connection(report_bias,report_gate_f)
             nengo.Connection(report_bias,report_gate_c)
