@@ -285,6 +285,8 @@ class FingerGnosis(pytry.NengoTrial):
         if p.task == 'fingers':
             scores = np.zeros(p.pointer_count-1, dtype=float)
             count = np.zeros(p.pointer_count-1)
+            mags = np.zeros(p.pointer_count-1)
+            magnitudes = []
 
             for i in range(len(self.exp.pairs)):
                 t_start = i * self.exp.trial_time
@@ -303,12 +305,19 @@ class FingerGnosis(pytry.NengoTrial):
                 delta = abs(c[0] - c[1])
                 count[delta - 1] += 1
                 if (r[0], r[1]) == (c[0], c[1]) or (r[0], r[1]) == (c[1], c[0]):
+                    v = (values[-1][0] + values[-2][0])/2
+                    magnitudes.append((c[0], c[1], v))
+                    mags[delta - 1] += v
                     scores[delta - 1] += 1
 
+
+            mags = mags / scores
             scores = scores / count
         else:
             scores = np.zeros(8, dtype=float)
             count = np.zeros(8)
+            mags = np.zeros(8, dtype=float)
+            magnitudes = []
 
             for i in range(len(self.exp.pairs)):
                 t_start = i * self.exp.trial_time
@@ -319,6 +328,7 @@ class FingerGnosis(pytry.NengoTrial):
                     index_end = len(t)
                 data = sim.data[self.p_compare][index_start:index_end]
                 answer = np.mean(data)
+                answer_value = np.max(data) if answer > 0 else np.min(data)
 
                 c = self.exp.pairs[i]
 
@@ -327,8 +337,12 @@ class FingerGnosis(pytry.NengoTrial):
                 count[delta - 1] += 1
                 if (answer < 0 and c[0] < c[1]) or (answer > 0 and c[1] < c[0]):
                     scores[delta - 1] += 1
+                    mags[delta - 1] += np.abs(answer_value)
+                    magnitudes.append((c[0], c[1], answer_value))
 
+            mags = mags / scores
             scores = scores / count
+
 
 
         if plt is not None:
@@ -351,4 +365,7 @@ class FingerGnosis(pytry.NengoTrial):
         result = {}
         for i, s in enumerate(scores):
             result['score%d'%(i+1)] = s
+        for i, m in enumerate(mags):
+            result['mag%d'%(i+1)] = m
+        result['magnitudes'] = magnitudes
         return result
