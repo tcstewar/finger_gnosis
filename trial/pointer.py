@@ -29,8 +29,8 @@ class NumberExperiment:
         index = int(t / self.trial_time)
         t = t % self.trial_time
         a, b = self.pairs[index % len(self.pairs)]
-        if 0.1<t<0.2: return [a * self.p.num_slope]
-        if 0.3<t<0.4: return [b * self.p.num_slope]
+        if 0.1<t<0.2: return [a * self.p.num_slope + self.p.num_bias]
+        if 0.3<t<0.4: return [b * self.p.num_slope + self.p.num_bias]
         return [0]
     def pointer_source(self, t):
         return [0, 1]
@@ -117,6 +117,7 @@ class FingerGnosis(pytry.NengoTrial):
         self.param('magnitude of touch signal', touch_strength=1.0)
         self.param('crosstalk decay', crosstalk_decay=0.0)
         self.param('scaling on numerical values', num_slope=0.1)
+        self.param('scaling on numerical values', num_bias=0)
 
     def model(self, p):
         model = nengo.Network()
