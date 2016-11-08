@@ -121,6 +121,8 @@ class FingerGnosis(pytry.NengoTrial):
         self.param('memory input scale', memory_input_scale=1.0)
         self.param('direct mode', direct=False)
         self.param('compare scale', compare_scale=50.0)
+        self.param('probe synapse', probe_synapse=0.01)
+        self.param('reference radius', ref_radius=1.0)
 
     def model(self, p):
         model = nengo.Network()
@@ -207,7 +209,7 @@ class FingerGnosis(pytry.NengoTrial):
                 b[i]=-1
                 basis.append(b)
             reference=nengo.Ensemble(p.N_reference,p.pointer_count,
-                                     radius=np.sqrt(p.pointer_count),
+                                     radius=np.sqrt(p.pointer_count)*p.ref_radius,
                                      encoders=nengo.dists.Choice(basis),
                                      intercepts=nengo.dists.Uniform(0.1,0.9))
             for i in range(p.pointer_count):
@@ -226,7 +228,7 @@ class FingerGnosis(pytry.NengoTrial):
             memory = nengo.networks.EnsembleArray(p.N_memory, p.pointer_count,
                                                   neuron_type=nengo.LIF(),
                                                   radius=1)
-            nengo.Connection(reference,memory.input,transform=p.memory_input_scale)
+            nengo.Connection(reference,memory.input,transform=p.memory_input_scale, synapse=p.memory_synapse)
             nengo.Connection(memory.output, memory.input,
                              transform=1, synapse=p.memory_synapse)
 
@@ -286,9 +288,9 @@ class FingerGnosis(pytry.NengoTrial):
                                  transform=[[-10]] * ens.n_neurons,
                                  synapse=0.01)
 
-            self.p_report = nengo.Probe(report.output, synapse=0.01)
-            self.p_compare = nengo.Probe(compare, synapse=0.01)
-            self.p_memory = nengo.Probe(memory.output, synapse=0.01)
+            self.p_report = nengo.Probe(report.output, synapse=p.probe_synapse)
+            self.p_compare = nengo.Probe(compare, synapse=p.probe_synapse)
+            self.p_memory = nengo.Probe(memory.output, synapse=p.probe_synapse)
         self.locals = locals()
         return model
 
@@ -302,6 +304,7 @@ class FingerGnosis(pytry.NengoTrial):
             count = np.zeros(p.pointer_count-1)
             mags = np.zeros(p.pointer_count-1)
             magnitudes = []
+            error_magnitudes = []
 
             for i in range(len(self.exp.pairs)):
                 t_start = i * self.exp.trial_time
@@ -324,6 +327,8 @@ class FingerGnosis(pytry.NengoTrial):
                     magnitudes.append((c[0], c[1], v))
                     mags[delta - 1] += v
                     scores[delta - 1] += 1
+                else:
+                    error_magnitudes.append((c[0], c[1], v))
 
 
             mags = mags / scores
@@ -333,27 +338,36 @@ class FingerGnosis(pytry.NengoTrial):
             count = np.zeros(8)
             mags = np.zeros(8, dtype=float)
             magnitudes = []
+            error_magnitudes = []
 
             for i in range(len(self.exp.pairs)):
                 t_start = i * self.exp.trial_time
                 t_end = (i+1) * self.exp.trial_time
-                index_start = np.argmax(t > t_start)
+                index_start = np.argmax(t > t_start + 0.5)
                 index_end = np.argmax(t > t_end)
                 if t_end >= t[-1]:
                     index_end = len(t)
                 data = sim.data[self.p_compare][index_start:index_end]
-                answer = np.mean(data)
-                answer_value = np.max(data) if answer > 0 else np.min(data)
+
+                max_a = np.max(data)
+                min_a = np.min(data)
+                if max_a > -min_a:
+                    answer_value = max_a
+                else:
+                    answer_value = min_a
+                answer_value = np.mean(data)
 
                 c = self.exp.pairs[i]
 
 
                 delta = abs(c[0] - c[1])
                 count[delta - 1] += 1
-                if (answer < 0 and c[0] < c[1]) or (answer > 0 and c[1] < c[0]):
+                if (answer_value < 0 and c[0] < c[1]) or (answer_value > 0 and c[1] < c[0]):
                     scores[delta - 1] += 1
                     mags[delta - 1] += np.abs(answer_value)
                     magnitudes.append((c[0], c[1], answer_value))
+                else:
+                    error_magnitudes.append((c[0], c[1], answer_value))
 
             mags = mags / scores
             scores = scores / count
@@ -383,4 +397,5 @@ class FingerGnosis(pytry.NengoTrial):
         for i, m in enumerate(mags):
             result['mag%d'%(i+1)] = m
         result['magnitudes'] = magnitudes
+        result['error_magnitudes'] = error_magnitudes
         return result
