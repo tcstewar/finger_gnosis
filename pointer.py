@@ -32,7 +32,7 @@ class NumberExperiment:
         if 0.1<t<0.2:
             self.display.im_func._nengo_html_ = '<h1>%d</h1>' % a
             return
-        if 0.3<t<0.4: 
+        if 0.3<t<0.4:
             self.display.im_func._nengo_html_ = '<h1>%d</h1>' % b
             return
         self.display.im_func._nengo_html_ = ''
@@ -42,7 +42,7 @@ class NumberExperiment:
         a, b = self.pairs[index % len(self.pairs)]
         if 0.1<t<0.2:
             return [a * 0.1 - 1]
-        if 0.3<t<0.4: 
+        if 0.3<t<0.4:
             return [b * 0.1 - 1]
         return [0]
     def pointer_source(self, t):
@@ -317,7 +317,8 @@ class FingerGnosis(ctn_benchmark.Benchmark):
         if p.task == 'fingers':
             scores = np.zeros(p.pointer_count-1, dtype=float)
             count = np.zeros(p.pointer_count-1)
-            magnitudes = None
+            mags = np.zeros(p.pointer_count-1)
+            magnitudes = []
 
             for i in range(len(self.exp.pairs)):
                 t_start = i * self.exp.trial_time
@@ -336,8 +337,12 @@ class FingerGnosis(ctn_benchmark.Benchmark):
                 delta = abs(c[0] - c[1])
                 count[delta - 1] += 1
                 if (r[0], r[1]) == (c[0], c[1]) or (r[0], r[1]) == (c[1], c[0]):
+                    v = (values[-1][0] + values[-2][0])/2
+                    magnitudes.append((c[0], c[1], v))
+                    mags[delta - 1] += v
                     scores[delta - 1] += 1
 
+            mags = mags / scores
             scores = scores / count
         else:
             scores = np.zeros(8, dtype=float)
@@ -365,7 +370,7 @@ class FingerGnosis(ctn_benchmark.Benchmark):
                     scores[delta - 1] += 1
                     mags[delta - 1] += np.abs(answer_value)
                     magnitudes.append((c[0], c[1], answer_value))
-                
+
             mags = mags / scores
             scores = scores / count
 
@@ -400,4 +405,4 @@ if __name__ == '__main__':
     FingerGnosis().run()
 else:
     model = FingerGnosis().make_model(task='compare', crosstalk=0, time_clear_mem=0.4)
-    
+

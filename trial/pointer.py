@@ -146,11 +146,12 @@ class FingerGnosis(pytry.NengoTrial):
 
             # create neural models for the two input areas
             #  (fingers and magnitude)
-            area0 = nengo.Ensemble(p.N_input*p.pointer_count, p.pointer_count,
-                                   radius=np.sqrt(p.pointer_count))
+            #area0 = nengo.Ensemble(p.N_input*p.pointer_count, p.pointer_count,
+            #                       radius=np.sqrt(p.pointer_count))
+            area0 = nengo.networks.EnsembleArray(p.N_input, n_ensembles=p.pointer_count)
             area1 = nengo.Ensemble(p.N_input, 1)
 
-            nengo.Connection(input0, area0)
+            nengo.Connection(input0, area0.input)
             nengo.Connection(input1, area1)
 
 
@@ -168,6 +169,7 @@ class FingerGnosis(pytry.NengoTrial):
                 for i in range(p.pointer_count):
                     nengo.Ensemble(p.N_pointer,
                                    dimensions = p.input_count*2+1,
+                                   neuron_type=nengo.LIF(),
                                    radius = np.sqrt(p.input_count*2+1),
                                    label='%d' % i)
             for i in range(p.pointer_count):
@@ -182,7 +184,7 @@ class FingerGnosis(pytry.NengoTrial):
                                                  p.input_count*2+1,
                                                  pre=[i],
                                                  post=[p.input_count*2]))
-                nengo.Connection(area0, pointer,
+                nengo.Connection(area0.output, pointer,
                                  transform=matrix(p.pointer_count,
                                                   p.input_count*2+1,
                                                   pre=[i],post=[1]))
@@ -208,10 +210,18 @@ class FingerGnosis(pytry.NengoTrial):
                 b=[0]*p.pointer_count
                 b[i]=-1
                 basis.append(b)
-            reference=nengo.Ensemble(p.N_reference,p.pointer_count,
-                                     radius=np.sqrt(p.pointer_count)*p.ref_radius,
-                                     encoders=nengo.dists.Choice(basis),
-                                     intercepts=nengo.dists.Uniform(0.1,0.9))
+            #reference=nengo.Ensemble(p.N_reference,p.pointer_count,
+            #                         radius=np.sqrt(p.pointer_count)*p.ref_radius,
+            #                         neuron_type=nengo.LIF(),
+            #                         encoders=nengo.dists.Choice(basis),
+            #                         intercepts=nengo.dists.Uniform(0.1,0.9))
+            reference = nengo.networks.EnsembleArray(p.N_reference,
+                            n_ensembles = p.pointer_count,
+                            radius=p.ref_radius,
+                            neuron_type=nengo.LIF(),
+                            encoders=nengo.dists.Choice([[1]]),
+                            intercepts=nengo.dists.Uniform(0.1, 0.9))
+
             for i in range(p.pointer_count):
                 matrix=[p.crosstalk]*p.pointer_count
                 matrix[i]=1.0-p.crosstalk
@@ -220,7 +230,7 @@ class FingerGnosis(pytry.NengoTrial):
                     if delta > 1:
                         matrix[j] = max(0, p.crosstalk - p.crosstalk_decay * (delta-1))
                 pointer = pointers.ensembles[i]
-                nengo.Connection(pointer, reference,
+                nengo.Connection(pointer, reference.input,
                                  function=ref_func,
                                  transform=[[x] for x in matrix])
 
@@ -228,7 +238,7 @@ class FingerGnosis(pytry.NengoTrial):
             memory = nengo.networks.EnsembleArray(p.N_memory, p.pointer_count,
                                                   neuron_type=nengo.LIF(),
                                                   radius=1)
-            nengo.Connection(reference,memory.input,transform=p.memory_input_scale, synapse=p.memory_synapse)
+            nengo.Connection(reference.output,memory.input,transform=p.memory_input_scale, synapse=p.memory_synapse)
             nengo.Connection(memory.output, memory.input,
                              transform=1, synapse=p.memory_synapse)
 
