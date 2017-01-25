@@ -9,7 +9,8 @@ class StateArray(nengo.Network):
     def __init__(self, dimensions, n_states,
                  vocab=None,
                  channel_clarity=2,
-                 fwd_synapse=0.01, feedback_synapse=0.1):
+                 fwd_synapse=0.01, feedback_synapse=0.1,
+                 inh_synapse=0.01):
         super(StateArray, self).__init__()
         with self:
             self.input = nengo.Node(None, size_in=dimensions)
@@ -30,18 +31,19 @@ class StateArray(nengo.Network):
                 for ens in c.all_ensembles:
                     nengo.Connection(self.mask[i], ens.neurons,
                         transform=-channel_clarity*np.ones((ens.n_neurons, 1)),
-                        synapse=0.01)
+                        synapse=inh_synapse)
                 for ens in s.all_ensembles:
                     nengo.Connection(self.reset, ens.neurons,
                             transform=-2*np.ones((ens.n_neurons, 1)),
-                                     synapse=0.01)
+                                     synapse=inh_synapse)
 
 
 
 
 
 class MagStim(object):
-    def __init__(self, vocab, T_reset, T_stim, T_answer, n_states):
+    def __init__(self, vocab, T_reset, T_stim, T_answer, n_states,
+                 max_diff=8):
         self.vocab = vocab
         self.T_reset = T_reset
         self.T_stim = T_stim
@@ -51,7 +53,7 @@ class MagStim(object):
         self.stims = []
         for i in range(1, 10):
             for j in range(1, 10):
-                if i != j:
+                if i != j and abs(i-j) <= max_diff:
                     answer = 1 if i<j else -1
                     self.stims.append((i, j, answer))
         random.shuffle(self.stims)
@@ -105,11 +107,15 @@ class MagTrial(pytry.NengoTrial):
     def params(self):
         self.param('number of dimensions', D=8)
         self.param('number of states', n_states=2)
-        self.param('neurons for compare', n_compare=200)
+        self.param('neurons for compare', n_compare=1000)
         self.param('time to reset', T_reset=0.3)
         self.param('time to present stimuli', T_stim=0.3)
         self.param('time to read answer', T_answer=0.3)
-        self.param('channel clarity', channel_clarity=1.0)
+        self.param('channel clarity', channel_clarity=0.8)
+        self.param('representation uniqueness', rep_unique=1.0)
+        self.param('number of samples', n_samples=2000)
+        self.param('sample noise', sample_noise=0.15)
+        self.param('maximum difference to evaluate', max_diff=8)
 
     def model(self, p):
         vocab = spa.Vocabulary(p.D)
@@ -118,22 +124,30 @@ class MagTrial(pytry.NengoTrial):
         N9 = vocab.parse('N9')
         for i in range(1, 8):
             n = N1*(1-blend[i]) + N9*(blend[i])
+            n = (1-p.rep_unique)*n + p.rep_unique*vocab.parse('R%d' % i)
             n.normalize()
             vocab.add('N%d' % (i+1), n.v)
+        vocab = vocab.create_subset(['N%d' % i for i in range(1, 10)])
 
-        self.stim = MagStim(vocab, p.T_reset, p.T_stim, p.T_answer, p.n_states)
+        self.stim = MagStim(vocab, p.T_reset, p.T_stim, p.T_answer, p.n_states,
+                            max_diff=p.max_diff)
 
         model = nengo.Network()
         with model:
             compare = nengo.Ensemble(n_neurons=p.n_compare, dimensions=p.D*2)
             pts = []
             answers = []
-            for i in range(1, 10):
-                for j in range(1, 10):
-                    if i != j:
-                        pt = np.hstack([vocab.parse('N%d'%i).v,vocab.parse('N%d'%j).v])
-                        answers.append([1] if i < j else [-1])
-                        pts.append(pt)
+            while len(pts) < p.n_samples:
+                i = np.random.randint(1, 10)
+                j = np.random.randint(1, 10)
+                if i != j:
+                    pt = np.hstack([vocab.parse('N%d'%i).v,vocab.parse('N%d'%j).v])
+                    answers.append([1] if i < j else [-1])
+                    pts.append(pt)
+            answers = np.array(answers, dtype=float)
+            pts = np.array(pts)
+            answers += np.random.randn(*answers.shape)*p.sample_noise
+            pts += np.random.randn(*pts.shape)*p.sample_noise
 
             answer = nengo.Ensemble(n_neurons=100, dimensions=1)
             nengo.Connection(compare, answer, eval_points=pts, function=answers)
