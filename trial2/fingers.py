@@ -75,11 +75,18 @@ class FingStim(object):
         index = int(t / self.T_total) % len(self.stims)
         t = t % self.T_total
 
-        v = np.ones(self.n_states)
+        v = np.ones(self.n_states)*2
         if self.T_reset < t < self.T_reset + self.T_stim:
             i, j = self.stims[index]
-            v[i-1] = 0
-            v[j-1] = 0
+            t = t - self.T_reset
+            if t < self.T_stim / 2:
+                v[i-1] = 0
+                if i-2>=0: v[i-2] = 1
+                if i<self.n_states: v[i] = 1
+            else:
+                v[j-1] = 0
+                if j-2>=0: v[j-2] = 1
+                if j<self.n_states: v[j] = 1
         return v
 
     def answer(self, t):
