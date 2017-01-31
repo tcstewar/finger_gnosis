@@ -43,13 +43,14 @@ class StateArray(nengo.Network):
 
 class FingStim(object):
     def __init__(self, vocab, T_reset, T_stim, T_answer, n_states=5,
-                 max_diff=4):
+            max_diff=4, mask_base=1.125):
         self.vocab = vocab
         self.T_reset = T_reset
         self.T_stim = T_stim
         self.T_answer = T_answer
         self.T_total = T_reset + T_stim + T_answer
         self.n_states = n_states
+        self.mask_base=mask_base
         self.stims = []
         for i in range(1, 6):
             for j in range(1, 6):
@@ -75,7 +76,7 @@ class FingStim(object):
         index = int(t / self.T_total) % len(self.stims)
         t = t % self.T_total
 
-        v = np.ones(self.n_states)*2
+        v = np.ones(self.n_states)*self.mask_base
         if self.T_reset < t < self.T_reset + self.T_stim:
             i, j = self.stims[index]
             t = t - self.T_reset
@@ -122,12 +123,13 @@ class FingTrial(pytry.NengoTrial):
         self.param('maximum difference to evaluate', max_diff=4)
         self.param('number of neurons collecting from state', n_collect=1000)
         self.param('number of samples', n_samples=1000)
+        self.param('mask max value', mask_base=1.125)
 
     def model(self, p):
         vocab = spa.Vocabulary(p.D)
 
         self.stim = FingStim(vocab, p.T_reset, p.T_stim, p.T_answer, p.n_states,
-                            max_diff=p.max_diff)
+                            max_diff=p.max_diff, mask_base=p.mask_base)
 
         model = nengo.Network()
         with model:
