@@ -168,7 +168,7 @@ class FingTrial(pytry.NengoTrial):
             target = np.array(target, dtype=float)
             target += np.random.randn(*target.shape)*p.sample_noise
             pts = np.array(pts, dtype=float)
-            pts += np.random.randn(*train_pts.shape)*p.sample_noise
+            pts += np.random.randn(*pts.shape)*p.sample_noise
 
             nengo.Connection(collect, readout,
                              eval_points=pts,
